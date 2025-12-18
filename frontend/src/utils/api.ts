@@ -1,91 +1,151 @@
-import axios from 'axios';
+import type {
+  Contract,
+  ContractCreate,
+  ContractListParams,
+  Version,
+  VersionComparison,
+  Clause,
+  ClauseDetail,
+  Change,
+  ChangeListParams,
+  Alert,
+  AlertStatus,
+  AlertListParams,
+  DashboardStats,
+  ApiError,
+} from '@/types/api'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-const apiClient = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Types
-export interface Contract {
-  id: string;
-  vendor: string;
-  contract_type: string;
-  created_at: string;
-  updated_at: string;
+// Base fetch wrapper with error handling
+async function apiFetch<T>(
+  endpoint: string,
+  options?: RequestInit & { params?: Record<string, any> }
+): Promise<T> {
+  const { params, ...fetchOptions} = options || {}
+  
+  // Build URL with query params
+  let url = `${API_BASE_URL}${endpoint}`
+  if (params) {
+    const searchParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value))
+      }
+    })
+    const queryString = searchParams.toString()
+    if (queryString) {
+      url += `?${queryString}`
+    }
+  }
+  
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...fetchOptions?.headers,
+    },
+    ...fetchOptions,
+  })
+  
+  if (!response.ok) {
+    const error: ApiError = await response.json().catch(() => ({
+      detail: response.statusText,
+      status: response.status,
+    }))
+    throw new Error(error.detail || 'API request failed')
+  }
+  
+  // Handle 204 No Content
+  if (response.status === 204) {
+    return undefined as T
+  }
+  
+  return response.json()
 }
 
-export interface Version {
-  id: string;
-  contract_id: string;
-  version_number: number;
-  source_type: string;
-  source_url?: string;
-  created_at: string;
+// Contracts API
+export const contractsApi = {
+  list: (params?: ContractListParams) =>
+    apiFetch<Contract[]>('/api/contracts', { params }),
+  
+  get: (id: string) =>
+    apiFetch<Contract>(`/api/contracts/${id}`),
+  
+  create: (data: ContractCreate) =>
+    apiFetch<Contract>('/api/contracts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  upload: async (file: File, vendor: string, contractType: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('vendor', vendor)
+    formData.append('contract_type', contractType)
+    
+    const response = await fetch(`${API_BASE_URL}/api/contracts/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Upload failed' }))
+      throw new Error(error.detail)
+    }
+    
+    return response.json()
+  },
+  
+  delete: (id: string) =>
+    apiFetch<void>(`/api/contracts/${id}`, { method: 'DELETE' }),
 }
 
-export interface Change {
-  id: string;
-  contract_id: string;
-  change_type: string;
-  similarity_score?: number;
-  risk_level?: string;
-  risk_score?: number;
-  explanation?: string;
-  detected_at: string;
+// Versions API
+export const versionsApi = {
+  list: (contractId: string) =>
+    apiFetch<Version[]>(`/api/contracts/${contractId}/versions`),
+  
+  get: (versionId: string) =>
+    apiFetch<Version>(`/api/contracts/versions/${versionId}`),
+  
+  compare: (versionId: string, otherVersionId: string) =>
+    apiFetch<VersionComparison>(
+      `/api/contracts/versions/${versionId}/compare/${otherVersionId}`
+    ),
 }
 
-// API Functions
-export const api = {
-  // Health check
-  healthCheck: async () => {
-    const response = await apiClient.get('/health');
-    return response.data;
-  },
+// Clauses API
+export const clausesApi = {
+  listForVersion: (versionId: string) =>
+    apiFetch<Clause[]>(`/api/contracts/versions/${versionId}/clauses`),
+  
+  get: (clauseId: string) =>
+    apiFetch<ClauseDetail>(`/api/contracts/clauses/${clauseId}`),
+}
 
-  // Contracts
-  getContracts: async (): Promise<Contract[]> => {
-    const response = await apiClient.get('/api/contracts');
-    return response.data;
-  },
+// Changes API
+export const changesApi = {
+  list: (params?: ChangeListParams) =>
+    apiFetch<Change[]>('/api/contracts/changes', { params }),
+  
+  get: (changeId: string) =>
+    apiFetch<Change>(`/api/contracts/changes/${changeId}`),
+}
 
-  getContract: async (id: string): Promise<Contract> => {
-    const response = await apiClient.get(`/api/contracts/${id}`);
-    return response.data;
-  },
+// Alerts API
+export const alertsApi = {
+  list: (params?: AlertListParams) =>
+    apiFetch<Alert[]>('/api/alerts', { params }),
+  
+  updateStatus: (id: string, status: AlertStatus) =>
+    apiFetch<Alert>(`/api/alerts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+}
 
-  createContract: async (data: {
-    vendor: string;
-    contract_type: string;
-  }): Promise<Contract> => {
-    const response = await apiClient.post('/api/contracts', data);
-    return response.data;
-  },
-
-  // Versions
-  getVersions: async (contractId: string): Promise<Version[]> => {
-    const response = await apiClient.get(`/api/contracts/${contractId}/versions`);
-    return response.data;
-  },
-
-  // Changes
-  getChanges: async (contractId: string): Promise<Change[]> => {
-    const response = await apiClient.get(`/api/contracts/${contractId}/changes`);
-    return response.data;
-  },
-
-  // Upload
-  uploadContract: async (formData: FormData) => {
-    const response = await apiClient.post('/api/contracts/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  },
-};
-
-export default apiClient;
+// Stats API
+export const statsApi = {
+  get: () =>
+    apiFetch<DashboardStats>('/api/stats'),
+}
