@@ -1,0 +1,63 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16
+    container_name: contract-drifter-db
+    environment:
+      POSTGRES_DB: contract_drifter
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - contract-drifter-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # n8n Automation Platform
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: contract-drifter-n8n
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin123
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n-workflows:/workflows
+    networks:
+      - contract-drifter-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Adminer - Database Management UI
+  adminer:
+    image: adminer:latest
+    container_name: contract-drifter-adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - contract-drifter-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  contract-drifter-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  n8n_data:
