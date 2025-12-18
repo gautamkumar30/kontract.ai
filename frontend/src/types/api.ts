@@ -75,6 +75,15 @@ export interface ClauseDetail extends Clause {
   fingerprint?: Fingerprint
 }
 
+// Simplified clause summary returned in comparison responses
+export interface ClauseSummary {
+  id: string
+  clause_number: number
+  category?: string
+  heading?: string
+  text: string
+}
+
 export interface Fingerprint {
   id: string
   text_hash: string
@@ -96,6 +105,7 @@ export interface Change {
   risk_score?: number
   explanation?: string
   detected_at: string
+  clause?: ClauseSummary  // Optional clause summary populated in comparison responses
 }
 
 export interface ChangeListParams {
