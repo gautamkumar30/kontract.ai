@@ -72,12 +72,13 @@ async def health_check():
 
 
 # Include routers
-from routers import contracts, versions, changes, alerts
+from routers import contracts, versions, changes, alerts, clauses
 
 app.include_router(contracts.router, prefix="/api/contracts", tags=["contracts"])
 app.include_router(versions.router, prefix="/api/contracts", tags=["versions"])
 app.include_router(changes.router, prefix="/api/contracts", tags=["changes"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
+app.include_router(clauses.router, prefix="/api/contracts", tags=["clauses"])
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from database import get_db, get_settings
 from models import Contract, Version, ContractType, SourceType
 from schemas import ContractCreate, ContractResponse, ContractListResponse
 from services.text_extractor import TextExtractor
+from services.contract_processor import ContractProcessor
 from logger import get_logger
 
 router = APIRouter()
@@ -64,7 +65,13 @@ async def create_contract(
                 )
                 db.add(version)
                 db.commit()
+                db.refresh(version)
                 logger.info(f"Initial version created for contract {db_contract.id}")
+                
+                # Trigger processing pipeline
+                processor = ContractProcessor(db=db)
+                processing_result = await processor.process_new_version(version.id)
+                logger.info(f"Processing pipeline completed: {processing_result.get('statistics')}")
             else:
                 logger.warning(f"Text extraction failed for {contract.source_url}: {result.get('error')}")
         
@@ -256,7 +263,13 @@ async def upload_contract(
             )
             db.add(version)
             db.commit()
+            db.refresh(version)
             logger.info(f"Version created for contract {db_contract.id}, extracted {len(result['raw_text'])} characters")
+            
+            # Trigger processing pipeline
+            processor = ContractProcessor(db=db)
+            processing_result = await processor.process_new_version(version.id)
+            logger.info(f"Processing pipeline completed: {processing_result.get('statistics')}")
         else:
             # If extraction failed, still keep the contract but log error
             error_msg = result.get('error', 'Unknown error')
