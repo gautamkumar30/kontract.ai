@@ -120,15 +120,17 @@ export interface Alert {
   id: string
   change_id: string
   alert_type: 'email' | 'slack' | 'dashboard'
-  status: 'pending' | 'sent' | 'acknowledged' | 'resolved'
+  status: 'pending' | 'sent' | 'failed'
+  recipient?: string
   created_at: string
   sent_at?: string
+  change?: Change  // Optional populated change data for display
 }
 
 export type AlertStatus = Alert['status']
 
 export interface AlertListParams {
-  status?: AlertStatus
+  status?: string
   limit?: number
 }
 
