@@ -149,3 +149,27 @@ export const statsApi = {
   get: () =>
     apiFetch<DashboardStats>('/api/stats'),
 }
+
+// Analytics API
+export const analyticsApi = {
+  getTrends: (days?: number) =>
+    apiFetch<Array<{ date: string; count: number }>>('/api/analytics/trends', {
+      params: days ? { days } : undefined
+    }),
+  
+  getRiskDistribution: () =>
+    apiFetch<{ critical: number; high: number; medium: number; low: number }>(
+      '/api/analytics/risk-distribution'
+    ),
+  
+  getChangeTypes: () =>
+    apiFetch<{ added: number; removed: number; modified: number; rewritten: number }>(
+      '/api/analytics/change-types'
+    ),
+  
+  getVendorStats: (limit?: number) =>
+    apiFetch<Array<{ vendor: string; changes: number; contracts: number }>>(
+      '/api/analytics/vendor-stats',
+      { params: limit ? { limit } : undefined }
+    ),
+}
