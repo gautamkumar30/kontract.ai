@@ -12,6 +12,10 @@ import type {
   AlertStatus,
   AlertListParams,
   DashboardStats,
+  TrendData,
+  RiskDistribution,
+  ChangeTypes,
+  VendorStats,
   ApiError,
 } from '@/types/api'
 
@@ -148,4 +152,28 @@ export const alertsApi = {
 export const statsApi = {
   get: () =>
     apiFetch<DashboardStats>('/api/stats'),
+}
+
+// Analytics API
+export const analyticsApi = {
+  getTrends: (days?: number) =>
+    apiFetch<TrendData[]>('/api/analytics/trends', {
+      params: days ? { days } : undefined
+    }),
+  
+  getRiskDistribution: () =>
+    apiFetch<RiskDistribution>(
+      '/api/analytics/risk-distribution'
+    ),
+  
+  getChangeTypes: () =>
+    apiFetch<ChangeTypes>(
+      '/api/analytics/change-types'
+    ),
+  
+  getVendorStats: (limit?: number) =>
+    apiFetch<VendorStats[]>(
+      '/api/analytics/vendor-stats',
+      { params: limit ? { limit } : undefined }
+    ),
 }

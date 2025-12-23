@@ -142,6 +142,32 @@ export interface DashboardStats {
   pending_alerts: number
 }
 
+// Analytics types
+export interface TrendData {
+  date: string
+  count: number
+}
+
+export interface RiskDistribution {
+  critical: number
+  high: number
+  medium: number
+  low: number
+}
+
+export interface ChangeTypes {
+  added: number
+  removed: number
+  modified: number
+  rewritten: number
+}
+
+export interface VendorStats {
+  vendor: string
+  changes: number
+  contracts: number
+}
+
 // API Error type
 export interface ApiError {
   detail: string
