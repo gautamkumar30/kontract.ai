@@ -1,7 +1,7 @@
 # Contract Drift Detector - Makefile
 # Comprehensive development and deployment commands
 
-.PHONY: help setup install build up down restart logs clean test lint format db-migrate db-reset dev-backend dev-frontend
+.PHONY: help setup install docker-build docker-up docker-down docker-restart docker-logs docker-logs-db docker-logs-n8n docker-status clean test lint format db-migrate db-reset dev-backend dev-frontend
 
 # Default target
 .DEFAULT_GOAL := help
@@ -52,14 +52,14 @@ install-frontend: ## Install frontend dependencies only
 
 ##@ Docker Commands
 
-build: ## Build all Docker containers
+docker-build: ## Build all Docker containers
 	@echo "$(BLUE)Building Docker containers...$(NC)"
 	sudo docker compose build
 	@echo "$(GREEN)✓ Build complete!$(NC)"
 
 # Backend and frontend are now run locally, not in Docker
 
-up: ## Start Docker services (PostgreSQL + n8n)
+docker-up: ## Start Docker services (PostgreSQL + n8n)
 	@echo "$(BLUE)Starting Docker services...$(NC)"
 	sudo docker compose up -d
 	@echo "$(GREEN)✓ Docker services started!$(NC)"
@@ -72,12 +72,12 @@ up: ## Start Docker services (PostgreSQL + n8n)
 	@echo "  Backend:  $(GREEN)make dev-backend$(NC)"
 	@echo "  Frontend: $(GREEN)make dev-frontend$(NC)"
 
-down: ## Stop all services
+docker-down: ## Stop all services
 	@echo "$(BLUE)Stopping all services...$(NC)"
 	sudo docker compose down
 	@echo "$(GREEN)✓ All services stopped!$(NC)"
 
-restart: ## Restart all services
+docker-restart: ## Restart all services
 	@echo "$(BLUE)Restarting all services...$(NC)"
 	sudo docker compose restart
 	@echo "$(GREEN)✓ All services restarted!$(NC)"
@@ -86,18 +86,18 @@ restart: ## Restart all services
 
 ##@ Logs & Monitoring
 
-logs: ## View logs from all services
+docker-logs: ## View logs from all services
 	sudo docker compose logs -f
 
 # Backend and frontend logs are in your terminal where you ran dev-backend/dev-frontend
 
-logs-db: ## View database logs
+docker-logs-db: ## View database logs
 	sudo docker compose logs -f postgres
 
-logs-n8n: ## View n8n logs
+docker-logs-n8n: ## View n8n logs
 	sudo docker compose logs -f n8n
 
-status: ## Show status of all services
+docker-status: ## Show status of all services
 	@echo "$(BLUE)Service Status:$(NC)"
 	@sudo docker compose ps
 
@@ -146,7 +146,7 @@ db-shell: ## Open PostgreSQL shell
 
 dev: ## Start development environment (all services)
 	@echo "$(BLUE)Starting development environment...$(NC)"
-	@make up
+	@make docker-up
 	@make db-migrate
 
 dev-backend: ## Run backend in development mode (local)
@@ -306,7 +306,7 @@ quickstart: ## Complete setup and start (for first time)
 	@echo ""
 	@make setup
 	@echo ""
-	@make up
+	@make docker-up
 	@echo ""
 	@sleep 5
 	@make db-migrate
