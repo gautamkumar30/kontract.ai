@@ -8,7 +8,7 @@ change types, and vendor statistics.
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from database import get_db
@@ -36,7 +36,7 @@ def get_change_trends(
     
     # Apply date filter if specified
     if days and days > 0:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         query = query.filter(Change.detected_at >= cutoff_date)
     
     # Group by date and order
@@ -66,29 +66,21 @@ def get_risk_distribution(db: Session = Depends(get_db)):
     
     Returns counts for each risk level: critical, high, medium, low.
     """
-    # Count changes by risk level
-    critical = db.query(func.count(Change.id)).filter(
-        Change.risk_level == RiskLevel.CRITICAL
-    ).scalar() or 0
-    
-    high = db.query(func.count(Change.id)).filter(
-        Change.risk_level == RiskLevel.HIGH
-    ).scalar() or 0
-    
-    medium = db.query(func.count(Change.id)).filter(
-        Change.risk_level == RiskLevel.MEDIUM
-    ).scalar() or 0
-    
-    low = db.query(func.count(Change.id)).filter(
-        Change.risk_level == RiskLevel.LOW
-    ).scalar() or 0
+    # Single query with GROUP BY for efficiency
+    results = db.query(
+        Change.risk_level,
+        func.count(Change.id).label('count')
+    ).group_by(Change.risk_level).all()
     
     distribution = {
-        "critical": critical,
-        "high": high,
-        "medium": medium,
-        "low": low
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0
     }
+    for row in results:
+        if row.risk_level:
+            distribution[row.risk_level.value] = row.count
     
     logger.info(f"Risk distribution: {distribution}")
     return distribution
@@ -101,29 +93,21 @@ def get_change_types(db: Session = Depends(get_db)):
     
     Returns counts for each change type: added, removed, modified, rewritten.
     """
-    # Count changes by type
-    added = db.query(func.count(Change.id)).filter(
-        Change.change_type == ChangeType.ADDED
-    ).scalar() or 0
-    
-    removed = db.query(func.count(Change.id)).filter(
-        Change.change_type == ChangeType.REMOVED
-    ).scalar() or 0
-    
-    modified = db.query(func.count(Change.id)).filter(
-        Change.change_type == ChangeType.MODIFIED
-    ).scalar() or 0
-    
-    rewritten = db.query(func.count(Change.id)).filter(
-        Change.change_type == ChangeType.REWRITTEN
-    ).scalar() or 0
+    # Single query with GROUP BY for efficiency
+    results = db.query(
+        Change.change_type,
+        func.count(Change.id).label('count')
+    ).group_by(Change.change_type).all()
     
     types = {
-        "added": added,
-        "removed": removed,
-        "modified": modified,
-        "rewritten": rewritten
+        "added": 0,
+        "removed": 0,
+        "modified": 0,
+        "rewritten": 0
     }
+    for row in results:
+        if row.change_type:
+            types[row.change_type.value] = row.count
     
     logger.info(f"Change types: {types}")
     return types
@@ -139,35 +123,27 @@ def get_vendor_stats(
     
     Returns array of {vendor, changes, contracts} sorted by change count.
     """
-    # Get all contracts with their vendors
-    contracts = db.query(Contract).all()
+    # Single query with JOIN and aggregation to avoid N+1 problem
+    results = db.query(
+        Contract.vendor,
+        func.count(func.distinct(Contract.id)).label('contracts'),
+        func.count(Change.id).label('changes')
+    ).outerjoin(
+        Change, Change.contract_id == Contract.id
+    ).group_by(
+        Contract.vendor
+    ).order_by(
+        func.count(Change.id).desc()
+    ).limit(limit).all()
     
-    # Count changes per contract
-    vendor_data = {}
-    for contract in contracts:
-        vendor = contract.vendor
-        if vendor not in vendor_data:
-            vendor_data[vendor] = {
-                "vendor": vendor,
-                "changes": 0,
-                "contracts": 0
-            }
-        
-        vendor_data[vendor]["contracts"] += 1
-        
-        # Count changes for this contract
-        change_count = db.query(func.count(Change.id)).filter(
-            Change.contract_id == contract.id
-        ).scalar() or 0
-        
-        vendor_data[vendor]["changes"] += change_count
-    
-    # Sort by change count and limit
-    sorted_vendors = sorted(
-        vendor_data.values(),
-        key=lambda x: x["changes"],
-        reverse=True
-    )[:limit]
+    sorted_vendors = [
+        {
+            "vendor": row.vendor,
+            "changes": row.changes,
+            "contracts": row.contracts
+        }
+        for row in results
+    ]
     
     logger.info(f"Retrieved stats for {len(sorted_vendors)} vendors")
     return sorted_vendors

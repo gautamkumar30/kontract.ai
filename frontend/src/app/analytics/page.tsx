@@ -57,10 +57,12 @@ export default function AnalyticsPage() {
   // Process data for charts
   const trendsData = useMemo(() => {
     if (!trends) return []
-    return trends.map(item => ({
-      date: format(parseISO(item.date), 'MMM dd'),
-      changes: item.count
-    }))
+    return trends
+      .filter(item => item.date != null)
+      .map(item => ({
+        date: format(parseISO(item.date), 'MMM dd'),
+        changes: item.count
+      }))
   }, [trends])
   
   const riskData = useMemo(() => {
@@ -231,8 +233,8 @@ export default function AnalyticsPage() {
                   outerRadius={100}
                   label={(entry) => `${entry.name}: ${entry.value}`}
                 >
-                  {riskData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {riskData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -271,8 +273,8 @@ export default function AnalyticsPage() {
                   }}
                 />
                 <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                  {typesData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {typesData.map((entry) => (
+                    <Cell key={entry.type} fill={entry.color} />
                   ))}
                 </Bar>
               </BarChart>
