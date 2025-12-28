@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { contractsApi } from '@/utils/api'
 
 interface AddContractModalProps {
   isOpen: boolean
@@ -16,6 +17,8 @@ export default function AddContractModal({ isOpen, onClose, onSuccess }: AddCont
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [error, setError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const contractTypes = [
     'Terms of Service',
@@ -26,6 +29,16 @@ export default function AddContractModal({ isOpen, onClose, onSuccess }: AddCont
     'Master Service Agreement',
   ]
 
+  // Map display names to API codes
+  const contractTypeMap: Record<string, string> = {
+    'Terms of Service': 'tos',
+    'Privacy Policy': 'privacy',
+    'Service Agreement': 'sla',
+    'Data Processing Agreement': 'dpa',
+    'SLA': 'sla',
+    'Master Service Agreement': 'msa',
+  }
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0])
@@ -34,19 +47,42 @@ export default function AddContractModal({ isOpen, onClose, onSuccess }: AddCont
 
   const handleSubmit = async () => {
     setLoading(true)
+    setError(false)
+    setErrorMessage('')
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    setLoading(false)
-    setSuccess(true)
-    
-    setTimeout(() => {
-      setSuccess(false)
-      onClose()
-      resetForm()
-      onSuccess?.()
-    }, 2000)
+    try {
+      // Map contract type to API code
+      const apiContractType = contractTypeMap[contractType] || 'other'
+      
+      if (step === 'manual') {
+        // Manual entry - create contract with URL
+        await contractsApi.create({
+          vendor,
+          contract_type: apiContractType,
+          source_url: url,
+        })
+      } else if (step === 'upload') {
+        // File upload
+        if (!file) {
+          throw new Error('No file selected')
+        }
+        await contractsApi.upload(file, vendor, apiContractType)
+      }
+      
+      setLoading(false)
+      setSuccess(true)
+      
+      setTimeout(() => {
+        setSuccess(false)
+        onClose()
+        resetForm()
+        onSuccess?.()
+      }, 2000)
+    } catch (err) {
+      setError(true)
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to add contract')
+      setLoading(false)
+    }
   }
 
   const resetForm = () => {
@@ -55,6 +91,8 @@ export default function AddContractModal({ isOpen, onClose, onSuccess }: AddCont
     setContractType('')
     setFile(null)
     setUrl('')
+    setError(false)
+    setErrorMessage('')
   }
 
   if (!isOpen) return null
@@ -84,6 +122,29 @@ export default function AddContractModal({ isOpen, onClose, onSuccess }: AddCont
 
         {/* Body */}
         <div className="px-6 py-6">
+          {/* Error Display */}
+          {error && (
+            <div className="mb-4 bg-rose-50 border border-rose-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-rose-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-rose-900">Error</h3>
+                  <p className="text-sm text-rose-800 mt-1">{errorMessage}</p>
+                </div>
+                <button
+                  onClick={() => setError(false)}
+                  className="text-rose-400 hover:text-rose-600 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+          
           {success ? (
             <div className="text-center py-12">
               <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">

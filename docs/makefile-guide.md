@@ -7,10 +7,12 @@
 make quickstart          # Complete setup and start everything
 
 # Daily development
-make up                  # Start all services
-make down                # Stop all services
-make logs                # View all logs
-make dev                 # Start dev environment with migrations
+make docker-up           # Start Docker services (DB + n8n)
+make docker-down         # Stop Docker services
+make docker-logs         # View Docker logs
+make dev-backend         # Start backend (local)
+make dev-frontend        # Start frontend (local)
+make dev                 # Start Docker services + run migrations
 
 # Database
 make db-migrate          # Run migrations
@@ -23,10 +25,9 @@ make lint                # Lint all code
 make format              # Format all code
 
 # Monitoring
-make status              # Show service status
+make docker-status       # Show Docker service status
 make health              # Check health of all services
-make logs-backend        # View backend logs only
-make logs-frontend       # View frontend logs only
+# Note: Backend/Frontend logs are visible in their respective terminals.
 ```
 
 ## Service URLs
@@ -71,17 +72,17 @@ make format              # Auto-format code
 
 ### Reset Everything
 ```bash
-make down
+make docker-down
 make clean-docker        # WARNING: Removes all Docker data
 make quickstart
 ```
 
 ### View Logs
 ```bash
-make logs                # All services
-make logs-backend        # Backend only
-make logs-frontend       # Frontend only
-make logs-db             # Database only
+make docker-logs         # All Docker services
+make docker-logs-db      # Database only
+make docker-logs-n8n     # n8n only
+# Note: Backend/Frontend logs are visible in their respective terminals.
 ```
 
 ### Database Issues
