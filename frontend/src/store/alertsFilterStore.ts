@@ -1,10 +1,11 @@
 import { create } from 'zustand'
+import type { AlertStatus } from '@/types/api'
 
 interface AlertsFilterState {
-  status: string  // 'all' | 'pending' | 'sent' | 'failed'
-  alertType: string  // 'all' | 'email' | 'slack' | 'dashboard'
-  setStatus: (status: string) => void
-  setAlertType: (type: string) => void
+  status: AlertStatus | 'all'
+  alertType: 'all' | 'email' | 'slack' | 'dashboard'
+  setStatus: (status: AlertStatus | 'all') => void
+  setAlertType: (type: 'all' | 'email' | 'slack' | 'dashboard') => void
   resetFilters: () => void
 }
 

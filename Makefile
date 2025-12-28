@@ -1,6 +1,7 @@
 # Contract Drift Detector - Makefile
 # Comprehensive development and deployment commands
 
+# Docker targets have been renamed (e.g., make up -> make docker-up) for clarity
 .PHONY: help setup install docker-build docker-up docker-down docker-restart docker-logs docker-logs-db docker-logs-n8n docker-status clean test lint format db-migrate db-reset dev-backend dev-frontend
 
 # Default target

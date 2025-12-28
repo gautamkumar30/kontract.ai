@@ -92,6 +92,8 @@ export interface Fingerprint {
   created_at: string
 }
 
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
+
 // Change types
 export interface Change {
   id: string
@@ -101,7 +103,7 @@ export interface Change {
   clause_id: string
   change_type: 'added' | 'removed' | 'modified' | 'rewritten'
   similarity_score?: number
-  risk_level?: 'low' | 'medium' | 'high' | 'critical'
+  risk_level?: RiskLevel
   risk_score?: number
   explanation?: string
   detected_at: string
@@ -110,7 +112,7 @@ export interface Change {
 
 export interface ChangeListParams {
   contract_id?: string
-  risk_level?: string
+  risk_level?: RiskLevel
   limit?: number
   sort?: string
 }
@@ -130,7 +132,7 @@ export interface Alert {
 export type AlertStatus = Alert['status']
 
 export interface AlertListParams {
-  status?: string
+  status?: AlertStatus
   limit?: number
 }
 

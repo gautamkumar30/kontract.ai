@@ -6,7 +6,7 @@ import { alertsApi } from '@/utils/api'
 import { formatDistanceToNow } from 'date-fns'
 import { useMemo } from 'react'
 import { useAlertsFilter } from '@/store/alertsFilterStore'
-import type { Alert } from '@/types/api'
+import type { Alert, AlertStatus } from '@/types/api'
 
 export default function AlertsPage() {
   const router = useRouter()
@@ -26,8 +26,8 @@ export default function AlertsPage() {
   
   // Update status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, newStatus }: { id: string, newStatus: string }) =>
-      alertsApi.updateStatus(id, newStatus as any),
+    mutationFn: ({ id, newStatus }: { id: string, newStatus: AlertStatus }) =>
+      alertsApi.updateStatus(id, newStatus),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
     }
@@ -48,7 +48,7 @@ export default function AlertsPage() {
     failed: alerts?.filter(a => a.status === 'failed').length || 0,
   }), [alerts])
   
-  const handleStatusUpdate = (id: string, newStatus: string) => {
+  const handleStatusUpdate = (id: string, newStatus: AlertStatus) => {
     updateStatusMutation.mutate({ id, newStatus })
   }
   
@@ -182,7 +182,7 @@ export default function AlertsPage() {
               id="status"
               className="block w-full text-gray-700 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) => setStatus(e.target.value as AlertStatus | 'all')}
             >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
@@ -199,7 +199,7 @@ export default function AlertsPage() {
               id="type"
               className="block w-full text-gray-700 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               value={alertType}
-              onChange={(e) => setAlertType(e.target.value)}
+              onChange={(e) => setAlertType(e.target.value as 'all' | 'email' | 'slack' | 'dashboard')}
             >
               <option value="all">All Types</option>
               <option value="email">Email</option>
