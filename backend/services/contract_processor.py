@@ -303,7 +303,7 @@ class ContractProcessor:
         contract_id: UUID
     ) -> int:
         """
-        Create alerts for high-risk changes.
+        Create alerts for high-risk changes and dispatch notifications.
         
         Args:
             changes: List of change records with risk data
@@ -312,27 +312,97 @@ class ContractProcessor:
         Returns:
             Number of alerts created
         """
+        from services.email_service import EmailService
+        from services.slack_service import SlackService
+        from datetime import datetime, timezone
+        
+        email_service = EmailService()
+        slack_service = SlackService()
+        
         alerts_created = 0
         
         for change_data in changes:
             risk_level = change_data.get("risk_level")
+            change_obj = change_data["change"]
             
             # Create alerts for HIGH and CRITICAL risk changes
             if risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+                # Get contract details
+                contract = self.db.query(Contract).filter(Contract.id == contract_id).first()
+                
                 # Create dashboard alert (always)
-                alert = Alert(
-                    change_id=change_data["change"].id,
+                dashboard_alert = Alert(
+                    change_id=change_obj.id,
                     alert_type=AlertType.DASHBOARD,
                     status=AlertStatus.SENT  # Dashboard alerts are immediately visible
                 )
-                self.db.add(alert)
+                self.db.add(dashboard_alert)
                 alerts_created += 1
                 
-                # TODO: Create email/Slack alerts based on user preferences
-                # This will be implemented in Sprint 3
+                # Create and send email alert
+                email_alert = Alert(
+                    change_id=change_obj.id,
+                    alert_type=AlertType.EMAIL,
+                    recipient="admin@company.com",  # TODO: Get from user preferences
+                    status=AlertStatus.PENDING
+                )
+                self.db.add(email_alert)
+                
+                # Send email
+                email_sent = email_service.send_alert_email(
+                    to_email=email_alert.recipient,
+                    vendor=contract.vendor,
+                    change_type=change_obj.change_type.value,
+                    risk_level=risk_level.value,
+                    risk_score=change_data.get("risk_score", 0),
+                    explanation=change_obj.explanation or "Contract change detected",
+                    contract_id=str(contract_id),
+                    change_id=str(change_obj.id)
+                )
+                
+                if email_sent:
+                    email_alert.status = AlertStatus.SENT
+                    email_alert.sent_at = datetime.now(timezone.utc)
+                    logger.info(f"Email alert sent for change {change_obj.id}")
+                else:
+                    email_alert.status = AlertStatus.FAILED
+                    logger.warning(f"Failed to send email alert for change {change_obj.id}")
+                
+                alerts_created += 1
+                
+                # Create and send Slack alert
+                slack_alert = Alert(
+                    change_id=change_obj.id,
+                    alert_type=AlertType.SLACK,
+                    recipient="#contract-alerts",  # TODO: Get from user preferences
+                    status=AlertStatus.PENDING
+                )
+                self.db.add(slack_alert)
+                
+                # Send Slack notification
+                slack_sent = slack_service.send_alert(
+                    channel=slack_alert.recipient,
+                    vendor=contract.vendor,
+                    change_type=change_obj.change_type.value,
+                    risk_level=risk_level.value,
+                    risk_score=change_data.get("risk_score", 0),
+                    explanation=change_obj.explanation or "Contract change detected",
+                    contract_id=str(contract_id)
+                )
+                
+                if slack_sent:
+                    slack_alert.status = AlertStatus.SENT
+                    slack_alert.sent_at = datetime.now(timezone.utc)
+                    logger.info(f"Slack alert sent for change {change_obj.id}")
+                else:
+                    slack_alert.status = AlertStatus.FAILED
+                    logger.warning(f"Failed to send Slack alert for change {change_obj.id}")
+                
+                alerts_created += 1
         
         if alerts_created > 0:
             self.db.commit()
             logger.info(f"Created {alerts_created} alerts for high-risk changes")
         
         return alerts_created
+

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     database_url: str = "postgresql://postgres:postgres_password@localhost:5433/contract_drifter"
     resend_api_key: str = ""
+    slack_webhook_url: str = ""
     gemini_api_key: str = ""
     n8n_webhook_base_url: str = "http://localhost:5678/webhook"
     frontend_url: str = "http://localhost:3000"
