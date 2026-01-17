@@ -4,7 +4,7 @@ Contracts Router
 Handles contract CRUD operations and file uploads.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Body, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import uuid
@@ -290,3 +290,66 @@ async def upload_contract(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload contract: {str(e)}"
         )
+
+
+@router.post("/{contract_id}/check-update")
+async def check_contract_update(
+    contract_id: str,
+    content: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if contract content has changed and create new version if needed.
+    Called by n8n workflow.
+    """
+    try:
+        contract_uuid = uuid.UUID(contract_id)
+        contract = db.query(Contract).filter(Contract.id == contract_uuid).first()
+        
+        if not contract:
+            raise HTTPException(status_code=404, detail="Contract not found")
+        
+        # Get latest version
+        latest_version = db.query(Version).filter(
+            Version.contract_id == contract_uuid
+        ).order_by(Version.version_number.desc()).first()
+        
+        if not latest_version:
+            raise HTTPException(status_code=404, detail="No versions found")
+        
+        # Compare content
+        if latest_version.raw_text == content:
+            logger.info(f"No changes detected for contract {contract_id}")
+            return {"changed": False, "message": "No changes detected"}
+        
+        logger.info(f"Changes detected for contract {contract_id}. Creating new version.")
+        
+        # Create new version
+        new_version = Version(
+            contract_id=contract_uuid,
+            version_number=latest_version.version_number + 1,
+            source_type=SourceType.URL,
+            source_url=contract.source_url,
+            raw_text=content
+        )
+        db.add(new_version)
+        db.commit()
+        db.refresh(new_version)
+        
+        # Process new version
+        processor = ContractProcessor(db=db)
+        result = await processor.process_new_version(new_version.id)
+        
+        return {
+            "changed": True,
+            "version_id": str(new_version.id),
+            "version_number": new_version.version_number,
+            "processing_result": result
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid contract ID")
+    except Exception as e:
+        logger.error(f"Error checking update for contract {contract_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
