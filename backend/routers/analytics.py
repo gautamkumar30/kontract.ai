@@ -7,12 +7,13 @@ change types, and vendor statistics.
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, distinct
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import random
 
 from database import get_db
-from models import Change, Contract, RiskLevel, ChangeType
+from models import Change, Contract, Version, RiskLevel, ChangeType
 from logger import get_logger
 
 router = APIRouter()
@@ -115,35 +116,107 @@ def get_change_types(db: Session = Depends(get_db)):
 
 @router.get("/vendor-stats")
 def get_vendor_stats(
-    limit: int = Query(10, ge=1, le=50, description="Maximum number of vendors to return"),
+    limit: int = Query(20, ge=1, le=50, description="Maximum number of vendors to return"),
     db: Session = Depends(get_db)
 ):
     """
-    Get top vendors by change count.
+    Get vendor statistics including risk scores and trends.
     
-    Returns array of {vendor, changes, contracts} sorted by change count.
+    Returns array of {vendor, score, changes, trend, versions_count} sorted by risk score.
     """
-    # Single query with JOIN and aggregation to avoid N+1 problem
+    # Query to aggregate vendor data
     results = db.query(
         Contract.vendor,
-        func.count(func.distinct(Contract.id)).label('contracts'),
-        func.count(Change.id).label('changes')
+        func.count(distinct(Change.id)).label('changes'),
+        func.avg(Change.risk_score).label('avg_risk_score'),
+        func.max(Version.version_number).label('versions_count')
     ).outerjoin(
-        Change, Change.contract_id == Contract.id
+        Version, Contract.id == Version.contract_id
+    ).outerjoin(
+        Change, Contract.id == Change.contract_id
     ).group_by(
         Contract.vendor
-    ).order_by(
-        func.count(Change.id).desc()
     ).limit(limit).all()
     
-    sorted_vendors = [
-        {
-            "vendor": row.vendor,
-            "changes": row.changes,
-            "contracts": row.contracts
-        }
-        for row in results
-    ]
+    # Calculate trend (simplified - compare recent vs older changes)
+    vendor_stats = []
+    for vendor, changes, avg_risk, versions in results:
+        # Get recent changes (last 30 days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        recent_changes = db.query(func.count(Change.id)).join(
+            Contract, Change.contract_id == Contract.id
+        ).filter(
+            Contract.vendor == vendor,
+            Change.detected_at >= cutoff
+        ).scalar() or 0
+        
+        # Get older changes (30-60 days ago)
+        older_cutoff = datetime.now(timezone.utc) - timedelta(days=60)
+        older_changes = db.query(func.count(Change.id)).join(
+            Contract, Change.contract_id == Contract.id
+        ).filter(
+            Contract.vendor == vendor,
+            Change.detected_at >= older_cutoff,
+            Change.detected_at < cutoff
+        ).scalar() or 0
+        
+        # Determine trend
+        if recent_changes > older_changes:
+            trend = "up"
+        elif recent_changes < older_changes:
+            trend = "down"
+        else:
+            trend = "stable"
+        
+        vendor_stats.append({
+            "vendor": vendor,
+            "score": int(avg_risk or 0),
+            "changes": changes or 0,
+            "trend": trend,
+            "versions_count": versions or 0
+        })
     
-    logger.info(f"Retrieved stats for {len(sorted_vendors)} vendors")
-    return sorted_vendors
+    # Sort by risk score descending
+    vendor_stats.sort(key=lambda x: x["score"], reverse=True)
+    
+    logger.info(f"Retrieved stats for {len(vendor_stats)} vendors")
+    return vendor_stats
+
+
+@router.get("/compliance")
+def get_compliance_stats(db: Session = Depends(get_db)):
+    """
+    Get compliance statistics by framework.
+    
+    Returns compliance status for major frameworks (GDPR, SOC2, HIPAA, CCPA, ISO 27001).
+    Note: This is a simplified implementation. In production, you would track
+    compliance status per contract in the database.
+    """
+    frameworks = ["GDPR", "SOC2", "HIPAA", "CCPA", "ISO 27001"]
+    total_contracts = db.query(func.count(Contract.id)).scalar() or 0
+    
+    if total_contracts == 0:
+        return []
+    
+    results = []
+    for framework in frameworks:
+        # Simplified logic - in production, you'd have a compliance tracking table
+        # For now, we'll use risk levels as a proxy for compliance
+        high_risk_count = db.query(func.count(distinct(Change.contract_id))).filter(
+            Change.risk_level.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
+        ).scalar() or 0
+        
+        # Estimate compliance based on risk
+        non_compliant = min(high_risk_count, total_contracts)
+        compliant = max(0, total_contracts - non_compliant - 1)
+        pending = max(1, total_contracts - compliant - non_compliant)
+        
+        results.append({
+            "framework": framework,
+            "compliant": compliant,
+            "non_compliant": non_compliant,
+            "pending": pending
+        })
+    
+    logger.info(f"Retrieved compliance stats for {len(results)} frameworks")
+    return results

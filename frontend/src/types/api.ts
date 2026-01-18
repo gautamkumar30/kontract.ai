@@ -166,8 +166,10 @@ export interface ChangeTypes {
 
 export interface VendorStats {
   vendor: string
+  score: number
   changes: number
-  contracts: number
+  trend: 'up' | 'down' | 'stable'
+  versions_count: number
 }
 
 // API Error type

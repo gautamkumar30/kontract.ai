@@ -134,6 +134,9 @@ export const changesApi = {
   
   get: (changeId: string) =>
     apiFetch<Change>(`/api/contracts/changes/${changeId}`),
+  
+  getTimeline: (params?: { limit?: number; risk_level?: string }) =>
+    apiFetch<any[]>('/api/changes/timeline', { params }),
 }
 
 // Alerts API
@@ -176,4 +179,8 @@ export const analyticsApi = {
       '/api/analytics/vendor-stats',
       { params: limit ? { limit } : undefined }
     ),
+  
+  getComplianceStats: () =>
+    apiFetch<any[]>('/api/analytics/compliance'),
 }
+

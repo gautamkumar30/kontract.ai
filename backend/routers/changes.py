@@ -124,3 +124,56 @@ def get_change_stats(
         stats["by_change_type"][change_type] = stats["by_change_type"].get(change_type, 0) + 1
     
     return stats
+
+
+@router.get("/timeline")
+def get_timeline_events(
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of events to return"),
+    risk_level: Optional[str] = Query(None, description="Filter by risk level"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get timeline of contract changes across all contracts.
+    
+    Returns chronological list of changes with vendor and version information.
+    """
+    from models import Version
+    
+    query = db.query(
+        Change,
+        Contract.vendor,
+        Version.version_number
+    ).join(
+        Contract, Change.contract_id == Contract.id
+    ).join(
+        Version, Change.to_version_id == Version.id
+    )
+    
+    if risk_level:
+        try:
+            query = query.filter(Change.risk_level == RiskLevel(risk_level))
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid risk level: {risk_level}"
+            )
+    
+    changes = query.order_by(
+        Change.detected_at.desc()
+    ).limit(limit).all()
+    
+    results = []
+    for change, vendor, version_num in changes:
+        results.append({
+            "vendor": vendor,
+            "event": change.explanation or f"{change.change_type.value} detected",
+            "type": change.risk_level.value if change.risk_level else "low",
+            "date": change.detected_at.isoformat(),
+            "version": version_num,
+            "change_id": str(change.id),
+            "contract_id": str(change.contract_id)
+        })
+    
+    logger.info(f"Retrieved {len(results)} timeline events")
+    return results
+

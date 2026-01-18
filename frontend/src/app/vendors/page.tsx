@@ -1,10 +1,40 @@
 'use client'
 
-import { mockVendorRiskScores, mockContracts } from '@/utils/mockData'
+import { useQuery } from '@tanstack/react-query'
+import { analyticsApi, contractsApi } from '@/utils/api'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts'
 
 export default function VendorComparisonPage() {
-  const radarData = mockVendorRiskScores.slice(0, 6).map(v => ({
+  const { data: vendorStats, isLoading } = useQuery({
+    queryKey: ['vendor-stats'],
+    queryFn: () => analyticsApi.getVendorStats(20)
+  })
+  
+  const { data: contracts } = useQuery({
+    queryKey: ['contracts'],
+    queryFn: () => contractsApi.list()
+  })
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <p className="mt-4 text-slate-600">Loading vendor data...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  if (!vendorStats || vendorStats.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-slate-600">No vendor data available</p>
+      </div>
+    )
+  }
+  
+  const radarData = vendorStats.slice(0, 6).map(v => ({
     vendor: v.vendor,
     risk: v.score,
     changes: v.changes * 10,
@@ -66,7 +96,7 @@ export default function VendorComparisonPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="text-center">
             <p className="text-3xl font-bold text-slate-900">
-              {Math.round(mockVendorRiskScores.reduce((acc, v) => acc + v.score, 0) / mockVendorRiskScores.length)}
+              {Math.round(vendorStats.reduce((acc, v) => acc + v.score, 0) / vendorStats.length)}
             </p>
             <p className="text-sm text-slate-600 mt-2">Average Risk Score</p>
           </div>
@@ -74,7 +104,7 @@ export default function VendorComparisonPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="text-center">
             <p className="text-3xl font-bold text-rose-600">
-              {mockVendorRiskScores.filter(v => v.score >= 70).length}
+              {vendorStats.filter(v => v.score >= 70).length}
             </p>
             <p className="text-sm text-slate-600 mt-2">High Risk Vendors</p>
           </div>
@@ -82,7 +112,7 @@ export default function VendorComparisonPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="text-center">
             <p className="text-3xl font-bold text-amber-600">
-              {mockVendorRiskScores.filter(v => v.trend === 'up').length}
+              {vendorStats.filter(v => v.trend === 'up').length}
             </p>
             <p className="text-sm text-slate-600 mt-2">Increasing Risk</p>
           </div>
@@ -90,7 +120,7 @@ export default function VendorComparisonPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="text-center">
             <p className="text-3xl font-bold text-emerald-600">
-              {mockVendorRiskScores.filter(v => v.trend === 'down').length}
+              {vendorStats.filter(v => v.trend === 'down').length}
             </p>
             <p className="text-sm text-slate-600 mt-2">Decreasing Risk</p>
           </div>
@@ -104,7 +134,7 @@ export default function VendorComparisonPage() {
           <p className="mt-1 text-sm text-slate-600">Comparative risk analysis across all vendors</p>
         </div>
         <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={mockVendorRiskScores} layout="vertical">
+          <BarChart data={vendorStats} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis type="number" domain={[0, 100]} stroke="#64748b" style={{ fontSize: '12px' }} />
             <YAxis dataKey="vendor" type="category" width={120} stroke="#64748b" style={{ fontSize: '12px' }} />
@@ -117,7 +147,7 @@ export default function VendorComparisonPage() {
               }}
             />
             <Bar dataKey="score" name="Risk Score" radius={[0, 8, 8, 0]}>
-              {mockVendorRiskScores.map((entry, index) => (
+              {vendorStats.map((entry, index) => (
                 <rect
                   key={`cell-${index}`}
                   fill={entry.score >= 80 ? '#dc2626' : entry.score >= 60 ? '#ea580c' : entry.score >= 40 ? '#f59e0b' : '#10b981'}
@@ -156,8 +186,8 @@ export default function VendorComparisonPage() {
 
       {/* Detailed Vendor Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockVendorRiskScores.map((vendor) => {
-          const contract = mockContracts.find(c => c.vendor === vendor.vendor)
+        {vendorStats.map((vendor) => {
+          const contract = contracts?.find(c => c.vendor === vendor.vendor)
           return (
             <div key={vendor.vendor} className={`bg-white rounded-xl border-2 ${getRiskBorderColor(vendor.score)} hover:shadow-lg transition-all duration-200`}>
               <div className={`h-2 ${getRiskColor(vendor.score)} rounded-t-xl`}></div>
